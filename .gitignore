@@ -1,0 +1,29 @@
+# dbt
+.dbt/
+target/
+dbt_packages/
+logs/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets
+.env
+*.key
+*.pem
+*.p12
+*.json
+
+# Data / exports
+*.csv
+*.xlsx
+*.parquet
+
+# Misc
+*.log

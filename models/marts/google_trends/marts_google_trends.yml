@@ -1,0 +1,229 @@
+version: 2
+
+models:
+  - name: dim_week
+    description: Weekly time dimension aligned to the curated weekly grain.
+    columns:
+      - name: week_id
+        description: ISO week identifier derived from iso week year + iso week number.
+        tests: [unique, not_null]
+
+      - name: week_start_date
+        description: Canonical start date of the observed week.
+        tests: [unique, not_null]
+
+      - name: iso_week_name
+        description: Formatted ISO week label (for example, 2026-W12).
+
+      - name: iso_week_number
+        description: ISO week number.
+
+      - name: iso_week_year
+        description: ISO week year.
+
+  - name: dim_dma
+    description: Dimension table for Designated Market Areas (DMAs).
+    columns:
+      - name: dma_id
+        description: Numeric DMA identifier.
+        tests: [unique, not_null]
+
+      - name: dma_name
+        description: Human-readable DMA name.
+        tests: [not_null]
+
+  - name: dim_term
+    description: Dimension table for search terms observed in the curated dataset.
+    columns:
+      - name: term_id
+        description: Surrogate key generated from the search term.
+        tests: [unique, not_null]
+
+      - name: term
+        description: Original search term string.
+        tests: [unique, not_null]
+
+  - name: fct_search_trends
+    description: >
+      Fact table at grain (week_id, dma_id, term_id), built from the latest
+      available snapshot per (week_start_date, dma_id) and enriched with
+      behavior-based metrics for activity, spikes, and persistence.
+
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - week_id
+              - dma_id
+              - term_id
+
+    columns:
+      - name: week_id
+        description: Foreign key to dim_week.
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_week')
+                field: week_id
+
+      - name: dma_id
+        description: Foreign key to dim_dma.
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_dma')
+                field: dma_id
+
+      - name: term_id
+        description: Foreign key to dim_term.
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_term')
+                field: term_id
+
+      - name: rank
+        description: >
+          Relative position of the term within the observed top results for a
+          given week and DMA.
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 1
+                max_value: 25
+                inclusive: true
+
+      - name: score
+        description: >
+          Normalized popularity signal (0-100). Score is sparse and primarily
+          used for spike detection.
+        tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+                max_value: 100
+                inclusive: true
+              config:
+                where: "score is not null"
+
+      - name: previous_score
+        description: Score from the previous observed week for the same DMA and term.
+
+      - name: score_change_wow
+        description: Week-over-week score change relative to the previous observed week.
+
+      - name: is_top_5_term
+        description: Flag indicating whether the term is ranked in the top 5.
+
+      - name: is_active_term
+        description: Flag indicating whether the term has score > 0.
+
+      - name: is_score_spike
+        description: Flag indicating whether the term shows a strong score spike (score >= 80).
+
+      - name: term_entry_flag
+        description: Flag indicating that the term became active after being inactive in the previous observed week.
+
+      - name: active_weeks_count
+        description: Number of observed weeks in which the term had score > 0 for the same DMA and term.
+
+      - name: observed_weeks_count
+        description: Total number of observed weeks for the same DMA and term.
+
+      - name: term_persistence_ratio
+        description: Ratio of active weeks to total observed weeks for the same DMA and term.
+
+      - name: refresh_date
+        description: Snapshot date retained for traceability and auditability.
+
+  - name: mart_search_trends
+    description: >
+      Denormalized BI-serving mart for weekly search trend analysis, combining
+      fact and dimension attributes into a flat structure optimized for
+      self-service analytics.
+
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - week_start_date
+              - dma_id
+              - term
+
+    columns:
+      - name: week_start_date
+        description: Canonical start date of the observed week.
+        tests: [not_null]
+
+      - name: iso_week_name
+        description: Formatted ISO week label.
+
+      - name: iso_week_number
+        description: ISO week number.
+
+      - name: iso_week_year
+        description: ISO week year.
+
+      - name: dma_id
+        description: Numeric DMA identifier.
+        tests: [not_null]
+
+      - name: dma_name
+        description: Human-readable DMA name.
+        tests: [not_null]
+
+      - name: term
+        description: Search term.
+        tests: [not_null]
+
+      - name: rank
+        description: Relative position of the term within the observed top results.
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 1
+                max_value: 25
+                inclusive: true
+
+      - name: score
+        description: Sparse normalized popularity signal.
+        tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+                max_value: 100
+                inclusive: true
+              config:
+                where: "score is not null"
+
+      - name: previous_score
+        description: Score from the previous observed week for the same DMA and term.
+
+      - name: score_change_wow
+        description: Week-over-week score change relative to the previous observed week.
+
+      - name: is_top_5_term
+        description: Flag indicating whether the term is ranked in the top 5.
+
+      - name: is_active_term
+        description: Flag indicating whether the term has score > 0.
+
+      - name: is_score_spike
+        description: Flag indicating whether the term shows a strong score spike (score >= 80).
+
+      - name: term_entry_flag
+        description: Flag indicating that the term became active after being inactive in the previous observed week.
+
+      - name: active_weeks_count
+        description: Number of observed weeks in which the term had score > 0 for the same DMA and term.
+
+      - name: observed_weeks_count
+        description: Total number of observed weeks for the same DMA and term.
+
+      - name: term_persistence_ratio
+        description: Ratio of active weeks to total observed weeks for the same DMA and term.

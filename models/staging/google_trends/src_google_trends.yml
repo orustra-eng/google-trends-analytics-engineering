@@ -1,0 +1,36 @@
+version: 2
+
+sources:
+  - name: google_trends
+    database: bigquery-public-data
+    schema: google_trends
+    description: Public Google Trends dataset in BigQuery.
+    tables:
+      - name: top_terms
+        description: Weekly top Google search terms by DMA, refreshed regularly by Google.
+        config:
+          freshness:
+            warn_after:
+              count: 24
+              period: hour
+        columns:
+          - name: refresh_date
+            description: Date the dataset snapshot was refreshed.
+            tests: [not_null]
+          - name: week
+            description: Week start date represented in the public dataset.
+            tests: [not_null]
+          - name: dma_id
+            description: DMA identifier.
+            tests: [not_null]
+          - name: dma_name
+            description: DMA display name.
+            tests: [not_null]
+          - name: term
+            description: Search term.
+            tests: [not_null]
+          - name: rank
+            description: Rank within the week and DMA context.
+            tests: [not_null]
+          - name: score
+            description: Relative search popularity score on a 0-100 scale when present.

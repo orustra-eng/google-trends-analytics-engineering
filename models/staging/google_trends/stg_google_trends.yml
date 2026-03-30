@@ -1,0 +1,32 @@
+version: 2
+
+models:
+  - name: stg_google_trends__top_terms
+    description: Cleaned and typed Google Trends top terms source table.
+    columns:
+      - name: refresh_date
+        tests: [not_null]
+      - name: week_start_date
+        tests: [not_null]
+      - name: dma_id
+        tests: [not_null]
+      - name: dma_name
+        tests: [not_null]
+      - name: term
+        tests: [not_null]
+      - name: rank
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 1
+                max_value: 25
+                inclusive: true
+      - name: score
+        tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+                max_value: 100
+                inclusive: true
+                where: "score is not null"

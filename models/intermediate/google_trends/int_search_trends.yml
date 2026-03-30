@@ -1,0 +1,105 @@
+version: 2
+
+models:
+  - name: int_search_trends_enriched
+    description: >
+      Intermediate model that selects the latest available snapshot per
+      (week_start_date, dma_id) and enriches search terms with analytical
+      features for activity, spike detection, and persistence.
+
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - week_start_date
+              - dma_id
+              - term
+
+    columns:
+      - name: refresh_date
+        description: Snapshot date used to select the latest available version of each weekly DMA view.
+        tests:
+          - not_null
+
+      - name: week_start_date
+        description: Start date of the observed week.
+        tests:
+          - not_null
+
+      - name: dma_id
+        description: Numeric DMA identifier.
+        tests:
+          - not_null
+
+      - name: dma_name
+        description: Human-readable DMA name.
+
+      - name: term
+        description: Search term observed in the Google Trends top terms dataset.
+        tests:
+          - not_null
+
+      - name: rank
+        description: >
+          Relative position of the term within the observed top results for a given
+          week and DMA. Rank is treated as a weak analytical signal because it is
+          often relatively stable over time.
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 1
+                max_value: 25
+                inclusive: true
+
+      - name: score
+        description: >
+          Normalized popularity signal (0-100). Score is sparse and better suited
+          for spike detection than for continuous trend analysis.
+        tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+                max_value: 100
+                inclusive: true
+              config:
+                where: "score is not null"
+
+      - name: iso_week_number
+        description: ISO week number derived from week_start_date.
+
+      - name: iso_week_year
+        description: ISO week year derived from week_start_date.
+
+      - name: iso_week_name
+        description: Formatted ISO week label (for example, 2026-W12).
+
+      - name: is_top_5_term
+        description: Flag indicating whether the term is ranked in the top 5 for the given week and DMA.
+
+      - name: is_active_term
+        description: Flag indicating whether the term has a positive score in the given week and DMA.
+
+      - name: is_score_spike
+        description: Flag indicating whether the term shows a strong score spike (score >= 80).
+
+      - name: previous_week_active_flag
+        description: Indicator showing whether the term was active in the previous observed week for the same DMA.
+
+      - name: previous_score
+        description: Score from the previous observed week for the same DMA and term.
+
+      - name: active_weeks_count
+        description: Number of observed weeks in which the term had score > 0 for the same DMA.
+
+      - name: observed_weeks_count
+        description: Total number of observed weeks for the same DMA and term in the curated dataset.
+
+      - name: term_entry_flag
+        description: Flag indicating that the term became active after being inactive in the previous observed week.
+
+      - name: score_change_wow
+        description: Week-over-week score change relative to the previous observed week.
+
+      - name: term_persistence_ratio
+        description: Ratio of active weeks to total observed weeks for the same DMA and term.

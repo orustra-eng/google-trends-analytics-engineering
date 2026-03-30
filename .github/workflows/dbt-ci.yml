@@ -1,0 +1,23 @@
+name: dbt-ci
+
+on:
+  pull_request:
+  push:
+    branches: [ main ]
+
+jobs:
+  dbt-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dbt
+        run: |
+          pip install dbt-bigquery
+      - name: Install packages
+        run: dbt deps
+      - name: Parse project
+        run: dbt parse
+      # In a real project, add credentials and run dbt build against a CI target.

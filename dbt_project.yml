@@ -1,0 +1,37 @@
+name: 'google_trends_case_study'
+version: '1.0.0'
+config-version: 2
+
+profile: 'google_trends_case_study'
+
+model-paths: ["models"]
+analysis-paths: ["analyses"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+
+target-path: "target"
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+models:
+  google_trends_case_study:
+    staging:
+      +materialized: view
+    intermediate:
+      +materialized: view
+    marts:
+      +materialized: table
+      google_trends:
+        dim_week:
+          +materialized: table
+        dim_dma:
+          +materialized: table
+        dim_term:
+          +materialized: table
+        fct_search_trends:
+          +materialized: table
+        mart_search_trends:
+          +materialized: table
