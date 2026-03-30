@@ -1,54 +1,118 @@
-# Google Trends Analytics Engineering Case Study
+# Google Trends Analytics Engineering (dbt)
 
-A lightweight dbt project for the `bigquery-public-data.google_trends.top_terms` dataset.
+## 📌 Overview
+This project implements an end-to-end analytics engineering pipeline on Google Trends data using **dbt**.
 
-## Goal
-Build a scalable, testable analytics model for a marketing analytics team that needs to:
-- track trending topics over time
-- compare regions (DMA)
-- identify rising trends early
+The goal is to transform raw search trend data into a clean, scalable, and analyst-friendly data model that supports trend monitoring, regional comparison, and emerging topic detection.
 
-## Modeling approach
-This repo uses a layered dbt structure:
-- `staging`: source cleanup and standardization
-- `intermediate`: reusable enrichment logic and latest-snapshot deduplication
-- `marts`: publishable analytical assets
-  - dimensional core: `dim_week`, `dim_dma`, `dim_term`, and `fct_search_trends`
-  - denormalized BI mart: `mart_search_trends`
+---
 
-## Source dataset
-Source table:
-- `bigquery-public-data.google_trends.top_terms`
+## ⚠️ Data Characteristics & Challenges
 
-Fields used here:
-- `refresh_date`
-- `week`
-- `dma_id`
-- `dma_name`
-- `term`
-- `rank`
-- `score`
+The Google Trends dataset introduces several important constraints:
 
-## Key design choices
-- Model the business grain as **one row per `(week, dma_id, term)`**.
-- Keep `refresh_date` as technical metadata in staging/intermediate/fact layers, but exclude it from the BI mart.
-- Deduplicate to the **latest available snapshot** per business grain before publishing marts.
-- Use a governed dimensional core plus a denormalized self-service BI table.
-- Treat `score` as a nullable, relative index rather than an absolute measure.
+- **Top-N truncation**: Only the top 25 terms per week and DMA are available  
+- **Relative scoring**: Scores are normalized (0–100), not absolute search volume  
+- **Snapshot behavior**: Multiple refreshes exist for the same logical period  
+- **Sparse signals**: Most scores are near zero with occasional spikes  
 
-## Proposed physical flow
-1. Declare the BigQuery public dataset as a dbt `source` for the assignment.
-2. Standardize and type the source in `stg_google_trends__top_terms`.
-3. Build reusable enriched logic in `int_search_trends_enriched`.
-4. Publish dimensions and a fact table in the `marts` layer.
-5. Expose `mart_search_trends` as the self-service BI table.
+These characteristics significantly influence modeling decisions.
 
-## Suggested interview talking points
-- Weekly grain aligned to the real source schema rather than the prompt wording.
-- Logical dimensional model for governance and reuse.
-- Denormalized serving mart for self-service BI in BigQuery.
-- Direct dbt source for the assignment; scheduled raw copy in production.
-- Tests at source, intermediate, mart, and BI-serving layers.
+---
 
-## Run notes
-This is a project skeleton intended for the case-study deliverable. Update `profiles.yml` with your BigQuery project and target dataset before running.
+## 🏗️ Architecture
+
+The project follows a layered dbt architecture:
+
+### 1. Staging (`stg_`)
+- Standardizes raw source data
+- Renames columns and enforces types
+- No business logic
+
+### 2. Intermediate (`int_`)
+- Applies business logic
+- Handles snapshot selection (latest per week + DMA)
+- Computes derived fields (e.g., WoW changes)
+
+### 3. Marts
+- **Fact table**: `fct_search_trends` (grain: week, DMA, term)
+- **Dimensions**: `dim_week`, `dim_dma`, `dim_term`
+- **BI mart**: `mart_search_trends` (denormalized for analytics)
+
+---
+
+## 📊 Data Model
+
+### Fact Table
+- Grain: `(week_id, dma_id, term_id)`
+- Measures:
+  - `score` (normalized popularity)
+  - `rank` (relative position within week + DMA)
+
+### Dimensions
+- `dim_week`: time attributes
+- `dim_dma`: geographic dimension
+- `dim_term`: unique search terms
+
+### Mart
+- Denormalized table optimized for BI and ad hoc analysis
+
+---
+
+## 🧪 Testing Strategy
+
+The project includes both **schema tests** and **custom data tests**:
+
+### Schema tests
+- Uniqueness constraints
+- Not-null checks
+- Referential integrity
+- Accepted value ranges (rank, score)
+
+### Custom tests
+- Max 25 terms per (week, DMA)
+- No duplicate ranks within a group
+- Consistency of active terms
+
+---
+
+## ⚖️ Key Design Decisions
+
+- Use **latest snapshot per (week, DMA)** for consistency
+- Favor **term presence and score trends** over rank-based analysis
+- Separate **business logic (intermediate)** from **serving layer (mart)**
+- Provide both:
+  - dimensional model (flexibility)
+  - denormalized mart (usability)
+
+---
+
+## 🚀 Scalability Considerations
+
+- Incremental models for large datasets
+- Partitioning by `week`
+- Clustering by `dma_id` and `term_id`
+- Modular design supports adding:
+  - new regions
+  - enriched term metadata
+  - additional marts
+
+---
+
+## 🔄 CI / Workflow
+
+- GitHub Actions pipeline defined (`dbt-ci.yml`)
+- Runs dbt build on pull requests
+- Ensures models and tests validate before merge
+
+*(Note: CI requires warehouse credentials via GitHub Secrets in production setups)*
+
+---
+
+## ▶️ How to Run
+
+```bash
+dbt deps
+dbt seed   # if applicable
+dbt run
+dbt test
